@@ -70,7 +70,7 @@ int main(int argc, char** argv)
   string isolation;
   flags.add(&isolation,
             "isolation",
-            "Isolation mechanism, may be one of: process, cgroups",
+            "Isolation mechanism, may be one of: process, cgroups, docker",
             "process");
 
   Option<string> master;

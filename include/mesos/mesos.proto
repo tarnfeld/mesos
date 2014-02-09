@@ -130,6 +130,15 @@ message CommandInfo {
 
 
 /**
+ * 
+ */
+message IsolationInfo {
+  required string image = 1;
+  repeated string args = 2;
+}
+
+
+/**
  * Describes information about an executor. The 'data' field can be
  * used to pass arbitrary bytes to an executor.
  */
@@ -139,6 +148,8 @@ message ExecutorInfo {
   required CommandInfo command = 7;
   repeated Resource resources = 5;
   optional string name = 9;
+
+  optional IsolationInfo isolation_info = 11;
 
   // Source is an identifier style string used by frameworks to track
   // the source of an executor. This is useful when it's possible for

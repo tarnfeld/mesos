@@ -177,7 +177,8 @@ libmesos_no_3rdparty_la_SOURCES =					\
 	slave/slave.cpp							\
 	slave/http.cpp							\
 	slave/isolator.cpp						\
-	slave/process_isolator.cpp					\
+  slave/process_isolator.cpp          \
+	slave/docker_isolator.cpp					\
 	slave/reaper.cpp						\
 	slave/status_update_manager.cpp					\
 	launcher/launcher.cpp						\
@@ -235,11 +236,13 @@ libmesos_no_3rdparty_la_SOURCES += common/attributes.hpp		\
 	messages/messages.hpp slave/constants.hpp			\
 	slave/flags.hpp slave/gc.hpp slave/monitor.hpp			\
 	slave/isolator.hpp						\
-	slave/cgroups_isolator.hpp					\
+  slave/cgroups_isolator.hpp          \
+	slave/docker_isolator.hpp					\
 	slave/paths.hpp slave/state.hpp					\
 	slave/status_update_manager.hpp					\
 	slave/process_isolator.hpp					\
-        slave/reaper.hpp						\
+  slave/docker_isolator.hpp          \
+  slave/reaper.hpp						\
 	slave/slave.hpp							\
 	tests/environment.hpp tests/script.hpp				\
 	tests/zookeeper.hpp tests/flags.hpp tests/utils.hpp		\
