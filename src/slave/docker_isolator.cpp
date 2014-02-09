@@ -19,8 +19,11 @@
 #include <string>
 
 #include <process/id.hpp>
+#include <process/defer.hpp>
 
 #include <stout/check.hpp>
+
+#include <boost/algorithm/string/join.hpp>
 
 #include "slave/flags.hpp"
 #include "slave/docker_isolator.hpp"
@@ -60,9 +63,75 @@ void DockerIsolator::launchExecutor(
 {
   CHECK(initialized) << "Cannot launch executors before initialization!";
 
+  const ExecutorID& executorId = executorInfo.executor_id();
   const IsolationInfo& isolationInfo = executorInfo.isolation_info();
 
-  LOG(INFO) << "ISOLATION " << isolationInfo.image();
+  // Convert the arguments into a list of strings
+  std::list<std::string> dockerArguments;
+  for (int i = 0; i < isolationInfo.args_size(); i++) {
+    dockerArguments.push_back(isolationInfo.args(i));
+  }
+
+  LOG(INFO) << "Launching docker container " << isolationInfo.image()
+            << " with arguments '" << boost::algorithm::join(dockerArguments, " ")
+            << "' (" << executorInfo.command().value() << ")"
+            << " with resources " << resources
+            << " for framework " << frameworkId;
+
+  ContainerInfo *info = new ContainerInfo(
+    frameworkId,
+    executorId,
+    dockerArguments
+  );
+
+  infos[frameworkId][executorId] = info;
+
+  // Use pipes to determine which child has successfully changed session.
+  int pipes[2];
+  if (pipe(pipes) < 0) {
+    PLOG(FATAL) << "Failed to create a pipe";
+  }
+
+  // Set the FD_CLOEXEC flags on these pipes
+  Try<Nothing> cloexec = os::cloexec(pipes[0]);
+  CHECK_SOME(cloexec) << "Error setting FD_CLOEXEC on pipe[0]";
+
+  cloexec = os::cloexec(pipes[1]);
+  CHECK_SOME(cloexec) << "Error setting FD_CLOEXEC on pipe[1]";
+
+  // Fork
+  pid_t pid;
+  if ((pid = fork()) == -1) {
+    PLOG(FATAL) << "Failed to fork to launch new executor";
+  }
+
+  if (pid > 0) {
+    os::close(pipes[1]);
+
+    // Get the child's pid via the pipe.
+    if (read(pipes[0], &pid, sizeof(pid)) == -1) {
+      PLOG(FATAL) << "Failed to get child PID from pipe";
+    }
+
+    os::close(pipes[0]);
+
+    // In parent process.
+    LOG(INFO) << "Forked executor at " << pid;
+
+    // Record the pid (should also be the pgid since we setsid below).
+    infos[frameworkId][executorId]->pid = pid;
+
+    reaper.monitor(pid)
+      .onAny(defer(PID<DockerIsolator>(this),
+                   &DockerIsolator::reaped,
+                   pid,
+                   lambda::_1));
+
+    // Tell the slave this executor has started.
+    dispatch(slave, &Slave::executorStarted, frameworkId, executorId, pid);
+  } else {
+    LOG(INFO) << "DO FORKING IN THE CHILD LOL";
+  }
 }
 
 
@@ -99,6 +168,52 @@ process::Future<Nothing> DockerIsolator::recover(
 {
   return Nothing();
 }
+
+
+void DockerIsolator::reaped(pid_t pid, const process::Future<Option<int> >& status)
+{
+  LOG(INFO) << "REAPED";
+  // foreachkey (const FrameworkID& frameworkId, infos) {
+  //   foreachkey (const ExecutorID& executorId, infos[frameworkId]) {
+  //     ProcessInfo* info = infos[frameworkId][executorId];
+
+  //     if (info->pid.isSome() && info->pid.get() == pid) {
+  //       if (!status.isReady()) {
+  //         LOG(ERROR) << "Failed to get the status for executor '" << executorId
+  //                    << "' of framework " << frameworkId << ": "
+  //                    << (status.isFailed() ? status.failure() : "discarded");
+  //         return;
+  //       }
+
+  //       LOG(INFO) << "Telling slave of terminated executor '" << executorId
+  //                 << "' of framework " << frameworkId;
+
+  //       dispatch(slave,
+  //                &Slave::executorTerminated,
+  //                frameworkId,
+  //                executorId,
+  //                status.get(),
+  //                false,
+  //                "Executor terminated");
+
+  //       if (!info->killed) {
+  //         // Try and cleanup after the executor.
+  //         killExecutor(frameworkId, executorId);
+  //       }
+
+  //       if (infos[frameworkId].size() == 1) {
+  //         infos.erase(frameworkId);
+  //       } else {
+  //         infos[frameworkId].erase(executorId);
+  //       }
+  //       delete info;
+
+  //       return;
+  //     }
+  //   }
+  // }
+}
+
 
 } // namespace slave {
 } // namespace internal {
