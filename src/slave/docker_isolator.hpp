@@ -85,19 +85,19 @@ private:
   {
     ContainerInfo(const FrameworkID& _frameworkId,
                   const ExecutorID& _executorId,
-                  const std::list<std::string>& _dockerArgs,
-                  const Option<pid_t>& _pid = None(),
+                  const std::list<std::string>& _dockerOptions,
+                  std::string _dockerContainerId,
                   bool _killed = false)
       : frameworkId(_frameworkId),
         executorId(_executorId),
-        dockerArgs(_dockerArgs),
-        pid(_pid),
+        dockerOptions(_dockerOptions),
+        dockerContainerId(_dockerContainerId),
         killed(_killed) {}
 
     FrameworkID frameworkId;
     ExecutorID executorId;
-    std::list<std::string> dockerArgs; // List of arguments for the docker invoke.
-    Option<pid_t> pid; // PID of the forked docker process.
+    std::list<std::string> dockerOptions; // List of arguments for docker.
+    std::string dockerContainerId; // Container ID of the docker container.
     bool killed; // True if "killing" has been initiated via 'killExecutor'.
     Resources resources; // Resources allocated to the process tree.
   };

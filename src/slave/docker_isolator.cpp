@@ -72,21 +72,47 @@ void DockerIsolator::launchExecutor(
     dockerArguments.push_back(isolationInfo.args(i));
   }
 
-  LOG(INFO) << "Launching docker container " << isolationInfo.image()
+  ContainerInfo *container = new ContainerInfo(
+    frameworkId,
+    executorId,
+    dockerArguments,
+    uuid.toString()
+  );
+
+  infos[frameworkId][executorId] = container;
+
+  LOG(INFO) << "Launching docker container " << container->dockerContainerId
+            << " with image " << isolationInfo.image()
             << " with arguments '" << boost::algorithm::join(dockerArguments, " ")
             << "' (" << executorInfo.command().value() << ")"
             << " with resources " << resources
             << " for framework " << frameworkId;
 
-  ContainerInfo *info = new ContainerInfo(
-    frameworkId,
-    executorId,
-    dockerArguments
-  );
+  std::list<std::string> args;
 
-  infos[frameworkId][executorId] = info;
+  args.push_back("docker");
+  args.push_back("-H");
+  args.push_back("192.168.4.2:7070");
+  args.push_back("run");
+  args.push_back("-name");
+  args.push_back(container->dockerContainerId);
 
-  // Use pipes to determine which child has successfully changed session.
+  // We get the environment map for launching mesos-launcher before
+  // the fork, because we have seen deadlock issues with ostringstream
+  // in the forked process before it calls exec.
+  // map<std::string, std::string> env = launcher.getLauncherEnvironment();
+  // foreachpair (const std::string& key, const std::string& value, env) {
+  //   args.push_back("-e");
+  //   args.push_back(key << "=" << value);
+  // }
+
+  args.insert(args.end(), dockerArguments.begin(), dockerArguments.end());
+
+  args.push_back(isolationInfo.image());
+  args.push_back(executorInfo.command().value());
+
+  LOG(INFO) << "Docker invoke " << boost::algorithm::join(args, " ");
+
   int pipes[2];
   if (pipe(pipes) < 0) {
     PLOG(FATAL) << "Failed to create a pipe";
@@ -102,7 +128,7 @@ void DockerIsolator::launchExecutor(
   // Fork
   pid_t pid;
   if ((pid = fork()) == -1) {
-    PLOG(FATAL) << "Failed to fork to launch new executor";
+    PLOG(FATAL) << "Failed to fork to launch docker container";
   }
 
   if (pid > 0) {
@@ -118,9 +144,6 @@ void DockerIsolator::launchExecutor(
     // In parent process.
     LOG(INFO) << "Forked executor at " << pid;
 
-    // Record the pid (should also be the pgid since we setsid below).
-    infos[frameworkId][executorId]->pid = pid;
-
     reaper.monitor(pid)
       .onAny(defer(PID<DockerIsolator>(this),
                    &DockerIsolator::reaped,
@@ -130,7 +153,27 @@ void DockerIsolator::launchExecutor(
     // Tell the slave this executor has started.
     dispatch(slave, &Slave::executorStarted, frameworkId, executorId, pid);
   } else {
-    LOG(INFO) << "DO FORKING IN THE CHILD LOL";
+    // In child process, we make cleanup easier by putting process
+    // into it's own session. DO NOT USE GLOG!
+    os::close(pipes[0]);
+
+    char *exec_args[args.size() + 1];
+    int count = 0;
+
+    for (std::list<std::string>::iterator arg = args.begin(); arg != args.end(); arg++) {
+        exec_args[count] = strdup(arg->c_str());
+        count++;
+    }
+
+    exec_args[count] = NULL;
+
+    LOG(INFO) << "Launching docker";
+
+    execvp(exec_args[0], exec_args);
+
+    // If we get here, the execvp call failed.
+    perror("Failed to execvp the mesos-launcher");
+    abort();
   }
 }
 
@@ -172,10 +215,9 @@ process::Future<Nothing> DockerIsolator::recover(
 
 void DockerIsolator::reaped(pid_t pid, const process::Future<Option<int> >& status)
 {
-  LOG(INFO) << "REAPED";
   // foreachkey (const FrameworkID& frameworkId, infos) {
   //   foreachkey (const ExecutorID& executorId, infos[frameworkId]) {
-  //     ProcessInfo* info = infos[frameworkId][executorId];
+  //     ContainerInfo* info = infos[frameworkId][executorId];
 
   //     if (info->pid.isSome() && info->pid.get() == pid) {
   //       if (!status.isReady()) {
