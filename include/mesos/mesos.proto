@@ -491,7 +491,7 @@ message ResourceArray {
  * Describes an external containerizer's termination.
  */
 message PluggableTermination {
-  required int status = 1;
+  required uint32 status = 1;
   required bool killed = 2;
   required string message = 3;
 }
