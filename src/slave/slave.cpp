@@ -810,7 +810,7 @@ void Slave::_runTask(
   Executor* executor = framework->getExecutor(executorId);
 
   if (executor == NULL) {
-    executor = framework->launchExecutor(executorInfo, task);
+    executor = framework->launchTask(task, executorInfo);
   }
 
   CHECK_NOTNULL(executor);
@@ -2830,9 +2830,9 @@ Framework::~Framework()
 
 
 // Create and launch an executor.
-Executor* Framework::launchExecutor(
-    const ExecutorInfo& executorInfo,
-    const TaskInfo& taskInfo)
+Executor* Framework::launchTask(
+    const TaskInfo& taskInfo,
+    const ExecutorInfo& executorInfo)
 {
   // Generate an ID for the executor's container.
   // TODO(idownes) This should be done by the containerizer but we need the
@@ -2874,6 +2874,7 @@ Executor* Framework::launchExecutor(
   // Launch the container.
   slave->containerizer->launch(
       containerId,
+      taskInfo,
       executorInfo_, // modified to include the task's resources
       executor->directory,
       slave->flags.switch_user ? Option<string>(info.user()) : None(),

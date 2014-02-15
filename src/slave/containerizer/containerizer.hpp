@@ -91,6 +91,7 @@ public:
   // Launch a containerized executor.
   virtual process::Future<Nothing> launch(
       const ContainerID& containerId,
+      const TaskInfo& taskInfo,
       const ExecutorInfo& executorInfo,
       const std::string& directory,
       const Option<std::string>& user,

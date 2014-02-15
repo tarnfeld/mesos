@@ -188,6 +188,7 @@ Future<Nothing> StatusUpdateManagerProcess::recover(
   LOG(INFO) << "Recovering status update manager";
 
   if (state.isNone()) {
+    LOG(INFO) << "No state -> status update manager recovery complete";
     return Nothing();
   }
 

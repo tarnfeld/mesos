@@ -71,6 +71,7 @@ TestContainerizer::~TestContainerizer()
 
 Future<Nothing> TestContainerizer::launch(
     const ContainerID& containerId,
+    const TaskInfo& taskInfo,
     const ExecutorInfo& executorInfo,
     const string& directory,
     const Option<string>& user,

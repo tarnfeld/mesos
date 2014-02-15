@@ -81,6 +81,7 @@ Future<Nothing> MesosContainerizer::recover(const Option<state::SlaveState>& sta
 
 Future<Nothing> MesosContainerizer::launch(
     const ContainerID& containerId,
+    const TaskInfo& taskInfo,
     const ExecutorInfo& executorInfo,
     const string& directory,
     const Option<string>& user,
@@ -91,6 +92,7 @@ Future<Nothing> MesosContainerizer::launch(
   return dispatch(process,
                   &MesosContainerizerProcess::launch,
                   containerId,
+                  taskInfo,
                   executorInfo,
                   directory,
                   user,
@@ -340,6 +342,7 @@ int execute(
 //    executor.
 Future<Nothing> MesosContainerizerProcess::launch(
     const ContainerID& containerId,
+    const TaskInfo& taskInfo,
     const ExecutorInfo& executorInfo,
     const string& directory,
     const Option<string>& user,

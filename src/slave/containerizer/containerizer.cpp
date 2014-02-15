@@ -38,6 +38,7 @@
 #include "slave/containerizer/isolator.hpp"
 #include "slave/containerizer/launcher.hpp"
 #include "slave/containerizer/mesos_containerizer.hpp"
+#include "slave/containerizer/pluggable_containerizer.hpp"
 
 #include "slave/containerizer/isolators/posix.hpp"
 #ifdef __linux__
@@ -179,45 +180,49 @@ Try<Containerizer*> Containerizer::create(
 
   LOG(INFO) << "Using isolation: " << isolation;
 
-  // Create a MesosContainerizerProcess using isolators and a launcher.
-  hashmap<std::string, Try<Isolator*> (*)(const Flags&)> creators;
+  if (strings::startsWith(isolation, "external")) {
+    return new PluggableContainerizer(flags);
+  } else {
+    // Create a MesosContainerizerProcess using isolators and a launcher.
+    hashmap<std::string, Try<Isolator*> (*)(const Flags&)> creators;
 
-  creators["posix/cpu"]   = &PosixCpuIsolatorProcess::create;
-  creators["posix/mem"]   = &PosixMemIsolatorProcess::create;
-#ifdef __linux__
-  creators["cgroups/cpu"] = &CgroupsCpushareIsolatorProcess::create;
-  creators["cgroups/mem"] = &CgroupsMemIsolatorProcess::create;
-#endif // __linux__
+    creators["posix/cpu"]   = &PosixCpuIsolatorProcess::create;
+    creators["posix/mem"]   = &PosixMemIsolatorProcess::create;
+  #ifdef __linux__
+    creators["cgroups/cpu"] = &CgroupsCpushareIsolatorProcess::create;
+    creators["cgroups/mem"] = &CgroupsMemIsolatorProcess::create;
+  #endif // __linux__
 
-  vector<Owned<Isolator> > isolators;
+    vector<Owned<Isolator> > isolators;
 
-  foreach (const string& type, strings::split(isolation, ",")) {
-    if (creators.contains(type)) {
-      Try<Isolator*> isolator = creators[type](flags);
-      if (isolator.isError()) {
-        return Error(
-            "Could not create isolator " + type + ": " + isolator.error());
+    foreach (const string& type, strings::split(isolation, ",")) {
+      if (creators.contains(type)) {
+        Try<Isolator*> isolator = creators[type](flags);
+        if (isolator.isError()) {
+          return Error(
+              "Could not create isolator " + type + ": " + isolator.error());
+        } else {
+          isolators.push_back(Owned<Isolator>(isolator.get()));
+        }
       } else {
-        isolators.push_back(Owned<Isolator>(isolator.get()));
+        return Error("Unknown or unsupported isolator: " + type);
       }
-    } else {
-      return Error("Unknown or unsupported isolator: " + type);
     }
-  }
 
-#ifdef __linux__
-  // Use cgroups on Linux if any cgroups isolators are used.
-  Try<Launcher*> launcher = strings::contains(isolation, "cgroups")
-    ? CgroupsLauncher::create(flags) : PosixLauncher::create(flags);
-#else
-  Try<Launcher*> launcher = PosixLauncher::create(flags);
-#endif // __linux__
-  if (launcher.isError()) {
-    return Error("Failed to create launcher: " + launcher.error());
-  }
+  #ifdef __linux__
+    // Use cgroups on Linux if any cgroups isolators are used.
+    Try<Launcher*> launcher = strings::contains(isolation, "cgroups")
+      ? CgroupsLauncher::create(flags) : PosixLauncher::create(flags);
+  #else
+    Try<Launcher*> launcher = PosixLauncher::create(flags);
+  #endif // __linux__
+    if (launcher.isError()) {
+      return Error("Failed to create launcher: " + launcher.error());
+    }
 
-  return new MesosContainerizer(
-      flags, local, Owned<Launcher>(launcher.get()), isolators);
+    return new MesosContainerizer(
+        flags, local, Owned<Launcher>(launcher.get()), isolators);
+  }
 }
 
 

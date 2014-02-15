@@ -385,6 +385,7 @@ void ContainerizerTest<slave::MesosContainerizer>::TearDown()
 }
 #endif // __linux__
 
+
 } // namespace tests {
 } // namespace internal {
 } // namespace mesos {

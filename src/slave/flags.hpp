@@ -169,6 +169,15 @@ public:
         "state as possible is recovered.\n",
         true);
 
+    add(&Flags::containerizer_path,
+        "containerizer_path",
+        "Path to pluggable containerizer executable.");
+
+    add(&Flags::default_container,
+        "default_container",
+        "The default container image is used when a task fails to specify\n"
+        "one.");
+
 #ifdef __linux__
     add(&Flags::cgroups_hierarchy,
         "cgroups_hierarchy",
@@ -196,6 +205,8 @@ public:
   Option<std::string> hostname;
   Option<std::string> resources;
   std::string isolation;
+  Option<std::string> containerizer_path;
+  Option<std::string> default_container;
   std::string default_role;
   Option<std::string> attributes;
   std::string work_dir;
