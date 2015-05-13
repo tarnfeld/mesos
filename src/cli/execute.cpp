@@ -38,6 +38,8 @@
 
 #include "hdfs/hdfs.hpp"
 
+#include "zookeeper/url.hpp"
+
 using namespace mesos;
 using namespace mesos::internal;
 
@@ -313,12 +315,15 @@ int main(int argc, char** argv)
     return -1;
   }
 
-  UPID master("master@" + flags.master.get());
-
-  if (!master) {
-    cerr << "Could not parse --master=" << flags.master.get() << endl;
-    usage(argv[0], flags);
-    return -1;
+  // Validate the master flag for friendly user error messages
+  Try<zookeeper::URL> zk = zookeeper::URL::parse(flags.master.get());
+  if (zk.isError()) {
+    UPID master("master@" + flags.master.get());
+    if (!master) {
+        cerr << "Could not parse --master=" << flags.master.get() << endl;
+        usage(argv[0], flags);
+        return -1;
+    }
   }
 
   if (flags.name.isNone()) {
